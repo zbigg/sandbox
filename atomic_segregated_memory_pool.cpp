@@ -34,18 +34,15 @@ public:
 
     // C++-like allocator interface
     T* allocate() {
-        int allocated_item;
-        int new_next_free;
-        while( true ) {
-            allocated_item = next_free.load(std::memory_order_relaxed);
+        int allocated_item = next_free.load();
+
+        while( true ) { 
             if( allocated_item == -1 ) {
                 throw std::bad_alloc();
             }
-            new_next_free = indicator(allocated_item);
-           
-            const bool change_succeded = next_free.compare_exchange_strong(allocated_item, new_next_free,
-                                                    std::memory_order_release,
-                                                    std::memory_order_relaxed);
+            int new_next_free = indicator(allocated_item);
+            assert(new_next_free != allocated_item);
+            const bool change_succeded = next_free.compare_exchange_strong(allocated_item, new_next_free);
             if( !change_succeded ) {
                 tprintf(tinfra::err, "allocate, retrying transaction\n");
                 continue;
@@ -60,16 +57,13 @@ public:
         //assert( p % sizeof(T) == 0 );
 
         const int idx = (p - this->buffer_start);
-        int last_next_free;
+        int       last_next_free = next_free.load();
         while( true ) {
-            last_next_free = next_free.load(std::memory_order_relaxed);
-            this->indicator(idx) = last_next_free;
             assert(last_next_free != idx);
+            this->indicator(idx) = last_next_free;
                 // this assertion sometimes fails, so we have some inconsistency
                 // in free slot graph !!!
-            bool change_succeded = next_free.compare_exchange_strong(last_next_free, idx,
-                                                    std::memory_order_release,
-                                                    std::memory_order_relaxed);
+            const bool change_succeded = next_free.compare_exchange_strong(last_next_free, idx);
             if( !change_succeded ) {
                 tprintf(tinfra::err, "deallocate, retrying transaction\n");
                 continue;
