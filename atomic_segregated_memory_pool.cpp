@@ -5,6 +5,7 @@
 #include <atomic>
 #include <inttypes.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include <thread>
 #include <vector>
@@ -13,14 +14,128 @@
 #include "tinfra/fmt.h"
 #include "tinfra/stream.h"
 
+
+int thread_count = 0;
+thread_local int thread_log_idx;
+
+std::string get_thread_string()
+{
+    std::string foo(thread_count, '.');
+    foo[thread_log_idx] = '|';
+    return tinfra::tsprintf("%i-%s", std::this_thread::get_id(), foo);
+}
+
+template <typename T>
+std::string vector_to_string(T const& v)
+{
+    std::ostringstream foo;
+    foo << "[";
+    for( int i = 0; i < v.size(); ++i ) {
+        if( i != 0 ) {
+            foo << ", ";
+        }
+        foo << v[i];
+    }
+    foo << "]";
+    return foo.str();
+}
+
+#ifdef USE_STD_ATOMIC
+
+#define ATOMMOO std::atomic
+
+#else
+#include <mutex>
+
+
+template <typename T>
+class my_mutex_based_fake_atomic {
+    T protected_var;
+    mutable std::mutex mux;
+public:
+    my_mutex_based_fake_atomic():
+        protected_var()
+    {
+    }
+    
+    my_mutex_based_fake_atomic(T v):
+        protected_var(v)
+    {
+    }
+
+    my_mutex_based_fake_atomic<T>& operator=(T v) {
+        std::lock_guard<std::mutex> g(this->mux);
+        protected_var = v;
+        return *this;
+    }
+
+    my_mutex_based_fake_atomic<T>& operator++() { // prefix ++
+        std::lock_guard<std::mutex> g(this->mux);
+        protected_var++;
+        return *this;
+    }
+    
+    my_mutex_based_fake_atomic<T>& operator--() { // prefix ++
+        std::lock_guard<std::mutex> g(this->mux);
+        protected_var--;
+        return *this;
+    }
+    /*
+    my_mutex_based_fake_atomic<T> operator++(int) {
+        std::lock_guard<std::mutex> g(this->mux);
+        my_mutex_based_fake_atomic<T> result(protected_var);
+        protected_var++;
+        return *this;
+    }
+    */
+
+    T load() const {
+        std::lock_guard<std::mutex> g(this->mux);
+        return protected_var;
+    }
+
+    bool compare_exchange_strong(T& expected, T desired) {
+        std::lock_guard<std::mutex> g(this->mux);
+        if( protected_var == expected ) {
+            protected_var = desired;
+            tprintf(tinfra::err, "T[%i]: compare_exchange_strong commited %i (expected=%i)\n", get_thread_string(), desired, expected);
+            return true;
+        } else {
+            tprintf(tinfra::err, "T[%i]: compare_exchange_strong not commited %i (expected=%i, actual=%i)\n", get_thread_string(), desired, expected, protected_var);
+            expected = protected_var;
+            return false;
+        }
+    }
+};
+
+#define ATOMMOO my_mutex_based_fake_atomic
+
+#endif
+
+static void my_nanosleep(int n)
+{
+    struct timespec f;
+    f.tv_sec = 0;
+    f.tv_nsec = n;
+    ::nanosleep(&f, 0);
+}
+
+#define my_assert(foo) \
+    do { \
+        if( !(foo) ) { \
+            tprintf(tinfra::err, "T[%i]: assertion '%s' failed in %s:%i\n", get_thread_string(), #foo, __FILE__, __LINE__); \
+            abort(); \
+        } \
+    } while(0)
+        
 template <typename T>
 class atomic_segregated_memory_allocator {
     static_assert(sizeof(T) >= sizeof(int), "T shall be able to store int basic_linked_memory_pool ");
 
     T* const        buffer_start;
     const size_t    buffer_size;
-    std::atomic<int> next_free;
-    std::atomic<int> n_allocated;
+    ATOMMOO<int> next_free;
+    ATOMMOO<int> n_allocated;
 
 public:
     atomic_segregated_memory_allocator(T* ptr, size_t size):
@@ -36,19 +151,34 @@ public:
     T* allocate() {
         int allocated_item = next_free.load();
 
-        while( true ) { 
+        tprintf(tinfra::err, "T[%i]: allocate first try with allocated_item %i\n", get_thread_string(), allocated_item);
+        while( true ) {
             if( allocated_item == -1 ) {
                 throw std::bad_alloc();
             }
-            int new_next_free = indicator(allocated_item);
+            int new_next_free = item_next_free_idx(allocated_item);
+                // so here is the race
+                //  1  (allocated_item AI, new_next_free NNF) pair is "read"
+                //  2. (tries to commit, but ... in meantime)
+                //  3.   (other thread allocates AI as a race)
+                //  3.1  (NNF is allocates by other thread) ...
+                //  4.   (other thread deallocates AI and it appears again as NF but now points to NNF2) 
+                //  5. (commit succedds with NNF because AI is same as in 1) 
+                //     BUG, NF points at NNF, which is not necessarily allocated
+                //     should point at NNF2 (!?) impossible
+                //     or TXN this kind of race should be detected and whole TXN shall be retried
             assert(new_next_free != allocated_item);
+            if(rand() % 2 ) my_nanosleep(1);
             const bool change_succeded = next_free.compare_exchange_strong(allocated_item, new_next_free);
             if( !change_succeded ) {
-                tprintf(tinfra::err, "allocate, retrying transaction\n");
+                tprintf(tinfra::err, "T[%i]: allocate, retrying with allocated_item %i\n", get_thread_string(), allocated_item);
                 continue;
+            } else {
+                tprintf(tinfra::err, "T[%i]: allocated %i, next_free = %i\n", get_thread_string(), allocated_item, new_next_free);
             }
             break;
         }
+        my_assert(_check_allocated(allocated_item));
         ++n_allocated;
         return item_ptr(allocated_item);
     }
@@ -58,15 +188,22 @@ public:
 
         const int idx = (p - this->buffer_start);
         int       last_next_free = next_free.load();
+
+        tprintf(tinfra::err, "T[%i]: deallocate[%s], first try with last_next_free %i\n", get_thread_string(), idx, last_next_free);
+        my_assert( _check_allocated(idx) );
+
         while( true ) {
-            assert(last_next_free != idx);
-            this->indicator(idx) = last_next_free;
+            my_assert(last_next_free != idx);
+            if(rand() % 2 ) my_nanosleep(1);
+            this->item_next_free_idx(idx) = last_next_free;
                 // this assertion sometimes fails, so we have some inconsistency
                 // in free slot graph !!!
             const bool change_succeded = next_free.compare_exchange_strong(last_next_free, idx);
             if( !change_succeded ) {
-                tprintf(tinfra::err, "deallocate, retrying transaction\n");
+                tprintf(tinfra::err, "T[%i]: deallocate[%s], retrying with last_next_free %i\n", get_thread_string(), idx, last_next_free);
                 continue;
+            } else {
+                tprintf(tinfra::err, "T[%i]: deallocate[%i], next_free = %i (linked %i->%i)\n", get_thread_string(), idx, idx, idx, last_next_free);
             }
             break;
         }
@@ -75,27 +212,62 @@ public:
 
     int allocated() const {
         int r = this->buffer_size;
-        int i = this->next_free;
+        int i = this->next_free.load();
         while( i != -1 ) {
-            i = indicator(i);
+            i = item_next_free_idx(i);
             r -= 1;
         }
         return r;
         //return this->n_allocated.load(std::memory_order_relaxed);
     }
 private:
+    bool _check_for_loops() {
+        int vector<int>           visited_stream;
+        int std::map<int, size_t> when_visited; // (v at k) say, that k is already visited at position v
+        int idx = next_free.load();
+        
+        while( idx != -1 ) {
+            if( when_visited.find(idx) != when_visited.end() ) {
+                // we've already seen this value, so WE HAVE LOOP
+                
+                tprintf(tinfra::err, "T[%i]: _check_for_loops %i->%i is a loop, whole vector\n", get_thread_string(), last, idx, vector_to_string(visited_stream));
+                return false;
+            }
+            
+            when_visited[idx] = visited_stream.size();
+            visited_stream.push_back(idx);
+            last = idx;
+            idx = item_next_free_idx(idx);
+        }
+        return true;
+    }
+    bool _check_allocated(int idx) {
+        int i = next_free.load();
+        int last = -1;
+        while( i != -1 ) {
+            if( idx == i ) {
+                tprintf(tinfra::err, "T[%i]: _check_allocated(%i) fails, because (%i->%i)\n", get_thread_string(), idx, last, idx);
+                _check_for_loops();
+                return false;
+            }
+            last = i;
+            i = item_next_free_idx(i);
+        }
+        return true;
+    }
+
     void initialize_storage()
     {
         for( size_t i = 0; i < this->buffer_size; i++ ) {
-            indicator(i) = i+1;
+            item_next_free_idx(i) = i+1;
         }
-        indicator(this->buffer_size-1) = -1;
+        item_next_free_idx(this->buffer_size-1) = -1;
         this->next_free = 0;
     }
-    const int& indicator(int i) const {
+    const int& item_next_free_idx(int i) const {
         return * reinterpret_cast<int const*>(this->buffer_start + i);
     }
-    int& indicator(int i) {
+    int& item_next_free_idx(int i) {
         return * reinterpret_cast<int*>(this->buffer_start + i);
     }
     T*   item_ptr(int i) {
@@ -162,6 +334,7 @@ void test1()
 
 void f(int T)
 {
+    thread_log_idx = thread_count++;
     const int R = 1024;
     const int N = 10;
     int* ptr[N];
@@ -196,6 +369,7 @@ void test3()
 
 int main()
 {
+    thread_log_idx = thread_count++;
     test0();
     test1();
     test3();
