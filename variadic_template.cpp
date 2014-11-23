@@ -31,7 +31,7 @@ void try_one(Rest... rest) {
 //
 // wrapper attempt
 //
-
+/*
 template <template <typename> class F>
 void call_multi_Rest(F fun)
 {
@@ -48,11 +48,12 @@ void call_multi_args(F<T> fun, T&& arg, Rest&& ... rest)
     fun(std::forward<T>(arg));
     call_multi_Rest(fun, std::forward<Rest...>(rest)...);
 }
+*/
 int main()
 {
     try_one(1);
     try_one(1,"abc", 2.0);
     //try_two(1,"abc", 2.0);
     
-    call_multi_args(my_register, 1,"abc", 2.0);
+    //call_multi_args(my_register, 1,"abc", 2.0);
 }

@@ -50,9 +50,10 @@ signal<int> area = fun_signal<int>(width, height).with([](int w, int h) {
         });
 
 
-int main()
+/*int main()
 {
     
 }
+*/
 
 
