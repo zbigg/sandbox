@@ -9,6 +9,7 @@
 
 #include <thread>
 #include <vector>
+#include <map>
 #include <iostream>
 
 #include "tinfra/fmt.h"
@@ -30,7 +31,7 @@ std::string vector_to_string(T const& v)
 {
     std::ostringstream foo;
     foo << "[";
-    for( int i = 0; i < v.size(); ++i ) {
+    for( size_t i = 0; i < v.size(); ++i ) {
         if( i != 0 ) {
             foo << ", ";
         }
@@ -40,6 +41,7 @@ std::string vector_to_string(T const& v)
     return foo.str();
 }
 
+#define USE_STD_ATOMIC
 #ifdef USE_STD_ATOMIC
 
 #define ATOMMOO std::atomic
@@ -134,7 +136,8 @@ class atomic_segregated_memory_allocator {
 
     T* const        buffer_start;
     const size_t    buffer_size;
-    ATOMMOO<int> next_free;
+    ATOMMOO<unsigned long> next_free;
+    ATOMMOO<int>  txn_id;
     ATOMMOO<int> n_allocated;
 
 public:
@@ -149,14 +152,16 @@ public:
 
     // C++-like allocator interface
     T* allocate() {
-        int allocated_item = next_free.load();
-
-        tprintf(tinfra::err, "T[%i]: allocate first try with allocated_item %i\n", get_thread_string(), allocated_item);
+        unsigned long allocated_item_coded = next_free.load();
+        
+        int allocated_item;
+        //tprintf(tinfra::err, "T[%i]: allocate first try with allocated_item %i\n", get_thread_string(), idx_decode(allocated_item_coded));
         while( true ) {
+            allocated_item = idx_decode(allocated_item_coded);
             if( allocated_item == -1 ) {
                 throw std::bad_alloc();
             }
-            int new_next_free = item_next_free_idx(allocated_item);
+            const int new_next_free = item_next_free_idx(allocated_item);
                 // so here is the race
                 //  1  (allocated_item AI, new_next_free NNF) pair is "read"
                 //  2. (tries to commit, but ... in meantime)
@@ -168,13 +173,15 @@ public:
                 //     should point at NNF2 (!?) impossible
                 //     or TXN this kind of race should be detected and whole TXN shall be retried
             assert(new_next_free != allocated_item);
-            if(rand() % 2 ) my_nanosleep(1);
-            const bool change_succeded = next_free.compare_exchange_strong(allocated_item, new_next_free);
+            //if(rand() % 2 ) my_nanosleep(1);
+            const unsigned long new_next_free_coded = idx_encode(new_next_free);
+            const bool change_succeded = next_free.compare_exchange_strong(allocated_item_coded, new_next_free_coded);
             if( !change_succeded ) {
-                tprintf(tinfra::err, "T[%i]: allocate, retrying with allocated_item %i\n", get_thread_string(), allocated_item);
+                allocated_item = idx_decode(allocated_item_coded);
+                //tprintf(tinfra::err, "T[%i]: allocate, retrying with allocated_item %i\n", get_thread_string(), allocated_item);
                 continue;
             } else {
-                tprintf(tinfra::err, "T[%i]: allocated %i, next_free = %i\n", get_thread_string(), allocated_item, new_next_free);
+                //tprintf(tinfra::err, "T[%i]: allocated %i, next_free = %i\n", get_thread_string(), allocated_item, new_next_free);
             }
             break;
         }
@@ -187,23 +194,27 @@ public:
         //assert( p % sizeof(T) == 0 );
 
         const int idx = (p - this->buffer_start);
-        int       last_next_free = next_free.load();
+        unsigned long last_next_free_coded = next_free.load();
+        int        last_next_free = idx_decode(last_next_free_coded);
 
-        tprintf(tinfra::err, "T[%i]: deallocate[%s], first try with last_next_free %i\n", get_thread_string(), idx, last_next_free);
+        //tprintf(tinfra::err, "T[%i]: deallocate[%s], first try with last_next_free %i\n", get_thread_string(), idx, idx_decode(last_next_free_coded));
         my_assert( _check_allocated(idx) );
 
         while( true ) {
+            
             my_assert(last_next_free != idx);
-            if(rand() % 2 ) my_nanosleep(1);
+            //if(rand() % 2 ) my_nanosleep(1);
             this->item_next_free_idx(idx) = last_next_free;
                 // this assertion sometimes fails, so we have some inconsistency
                 // in free slot graph !!!
-            const bool change_succeded = next_free.compare_exchange_strong(last_next_free, idx);
+            const unsigned long idx_coded = idx_encode(idx);
+            const bool change_succeded = next_free.compare_exchange_strong(last_next_free_coded, idx_coded);
             if( !change_succeded ) {
-                tprintf(tinfra::err, "T[%i]: deallocate[%s], retrying with last_next_free %i\n", get_thread_string(), idx, last_next_free);
+                last_next_free = idx_decode(last_next_free_coded);
+                //tprintf(tinfra::err, "T[%i]: deallocate[%s], retrying with last_next_free %i\n", get_thread_string(), idx, last_next_free);
                 continue;
             } else {
-                tprintf(tinfra::err, "T[%i]: deallocate[%i], next_free = %i (linked %i->%i)\n", get_thread_string(), idx, idx, idx, last_next_free);
+                //tprintf(tinfra::err, "T[%i]: deallocate[%i], next_free = %i (linked %i->%i)\n", get_thread_string(), idx, idx, idx, last_next_free);
             }
             break;
         }
@@ -221,19 +232,29 @@ public:
         //return this->n_allocated.load(std::memory_order_relaxed);
     }
 private:
+    unsigned long idx_encode(int x)
+    {
+        const long new_txn_id = ++txn_id;
+        return x | ( (unsigned long)new_txn_id << 32 );
+    }
+    int idx_decode(unsigned long x)
+    {
+        return int( x & 0xffffffff );
+    }
+
     bool _check_for_loops() {
-        int vector<int>           visited_stream;
-        int std::map<int, size_t> when_visited; // (v at k) say, that k is already visited at position v
-        int idx = next_free.load();
-        
+        std::vector<int>           visited_stream;
+        std::map<int, size_t> when_visited; // (v at k) say, that k is already visited at position v
+        int idx = idx_decode(next_free.load());
+        int last = -1;
         while( idx != -1 ) {
             if( when_visited.find(idx) != when_visited.end() ) {
                 // we've already seen this value, so WE HAVE LOOP
-                
+
                 tprintf(tinfra::err, "T[%i]: _check_for_loops %i->%i is a loop, whole vector\n", get_thread_string(), last, idx, vector_to_string(visited_stream));
                 return false;
             }
-            
+
             when_visited[idx] = visited_stream.size();
             visited_stream.push_back(idx);
             last = idx;
@@ -242,7 +263,7 @@ private:
         return true;
     }
     bool _check_allocated(int idx) {
-        int i = next_free.load();
+        int i = idx_decode(next_free.load());
         int last = -1;
         while( i != -1 ) {
             if( idx == i ) {
@@ -262,7 +283,7 @@ private:
             item_next_free_idx(i) = i+1;
         }
         item_next_free_idx(this->buffer_size-1) = -1;
-        this->next_free = 0;
+        this->next_free = idx_encode(0);
     }
     const int& item_next_free_idx(int i) const {
         return * reinterpret_cast<int const*>(this->buffer_start + i);
@@ -335,7 +356,7 @@ void test1()
 void f(int T)
 {
     thread_log_idx = thread_count++;
-    const int R = 1024;
+    const int R = 4192;
     const int N = 10;
     int* ptr[N];
     for( int r = 0; r < R; r++ ) {
@@ -358,7 +379,7 @@ void test3()
 {
     assert( pool.allocated() == 0);
     std::vector<std::thread> v;
-    for (int n = 0; n < 10; ++n) {
+    for (int n = 0; n < 4; ++n) {
         v.emplace_back(f, n);
     }
     for (auto& t : v) {
