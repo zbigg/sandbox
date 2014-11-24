@@ -41,7 +41,7 @@ std::string vector_to_string(T const& v)
     return foo.str();
 }
 
-#define USE_STD_ATOMIC
+//#define USE_STD_ATOMIC
 #ifdef USE_STD_ATOMIC
 
 #define ATOMMOO std::atomic
@@ -71,16 +71,16 @@ public:
         return *this;
     }
 
-    my_mutex_based_fake_atomic<T>& operator++() { // prefix ++
+    T& operator++() { // prefix ++
         std::lock_guard<std::mutex> g(this->mux);
-        protected_var++;
-        return *this;
+        ++protected_var;
+        return protected_var;
     }
     
-    my_mutex_based_fake_atomic<T>& operator--() { // prefix ++
+    T& operator--() { // prefix ++
         std::lock_guard<std::mutex> g(this->mux);
-        protected_var--;
-        return *this;
+        --protected_var;
+        return protected_var;
     }
     /*
     my_mutex_based_fake_atomic<T> operator++(int) {
@@ -100,10 +100,10 @@ public:
         std::lock_guard<std::mutex> g(this->mux);
         if( protected_var == expected ) {
             protected_var = desired;
-            tprintf(tinfra::err, "T[%i]: compare_exchange_strong commited %i (expected=%i)\n", get_thread_string(), desired, expected);
+            //tprintf(tinfra::err, "T[%i]: compare_exchange_strong commited %i (expected=%i)\n", get_thread_string(), desired, expected);
             return true;
         } else {
-            tprintf(tinfra::err, "T[%i]: compare_exchange_strong not commited %i (expected=%i, actual=%i)\n", get_thread_string(), desired, expected, protected_var);
+            //tprintf(tinfra::err, "T[%i]: compare_exchange_strong not commited %i (expected=%i, actual=%i)\n", get_thread_string(), desired, expected, protected_var);
             expected = protected_var;
             return false;
         }
