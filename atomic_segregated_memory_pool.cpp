@@ -357,7 +357,7 @@ void f(int T)
 {
     thread_log_idx = thread_count++;
     const int R = 4192;
-    const int N = 10;
+    const int N = 250;
     int* ptr[N];
     for( int r = 0; r < R; r++ ) {
         //tinfra::tprintf(tinfra::err, "T[%i] before iter %i pool size %i\n", T, r, pool.allocated());

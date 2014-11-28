@@ -12,6 +12,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+struct test_decorator {
+    virtual ~test_decorator() {}
+
+    virtual void start() = 0;
+    virtual void stop() = 0;
+
+    virtual void output(test_result_sink& sink) = 0;
+};
 struct test_result_sink {
     const char* test_name;
 
@@ -98,7 +106,7 @@ void test_column_wise(std::vector<int>& foo, int rows, int cols)
 void test_row_wise(std::vector<int>& foo, int rows, int cols)
 {
     //       <---- cols --- >
-    //  ^    [ a b c d e f g h j ... ] 
+    //  ^    [ a b c d e f g h j ... ]
     // rows  [ ...                   ]
     //  v    [                       ]
 
