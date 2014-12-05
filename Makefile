@@ -3,7 +3,7 @@ CC=g++
 COMMON_LINK_COMPILE_FLAGS=-g -std=c++11 -pthread
 CXXFLAGS=-Wall -Wextra -MD
 LDFLAGS=
-LDLIBS=-ltinfra -ldl
+LDLIBS=-ltinfra-regexp -ltinfra -ltinfra-test -ldl -lpcre
 
 CXXFLAGS += $(COMMON_LINK_COMPILE_FLAGS)
 LDFLAGS  += $(COMMON_LINK_COMPILE_FLAGS)
@@ -17,6 +17,7 @@ programs += atomic_segregated_memory_pool_mutex atomic_segregated_memory_atomic
 
 default: $(programs)
 
+test_http_parser: test_http_parser.o http.o
 
 clean:
 	rm -rf $(programs) *.d
