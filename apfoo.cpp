@@ -1,4 +1,5 @@
 #include "json_mo_writer.h"
+#include "json_mo_parser.h"
 
 #include <tinfra/tstring.h>
 #include <tinfra/tcp_socket.h>
@@ -14,7 +15,16 @@
 // deploy_app
 //
 struct deployment_request {
+    std::string uri;
+    std::string implementation;
+
+    TINFRA_MO_MANIFEST(deployment_request) {
+        TINFRA_MO_FIELD(uri);
+        TINFRA_MO_FIELD(implementation);
+    }
 };
+
+TINFRA_MO_IS_RECORD(deployment_request);
 
 struct deploymnent_response {
     int status;
@@ -36,6 +46,7 @@ TINFRA_MO_IS_RECORD(deploymnent_response);
 void deploy_app(deployment_request const& params, deploymnent_response& resp)
 {
     tinfra::log_info("deploy_app called");
+    resp.message = tinfra::tsprintf("deployed %s under %s", params.implementation, params.uri);
 }
 
 //
@@ -48,12 +59,14 @@ using tinfra::output_stream;
 
 struct http_request {
     tstring request_uri;
+    std::string content;
 
     http_request(input_stream& in):
         in(in)
     {
     }
     void parse_headers();
+
 private:
     input_stream& in;
 };
@@ -208,6 +221,7 @@ http_handler* http_server::find_handler(http_request const& request)
 void http_request::parse_headers()
 {
     this->request_uri = "/deploy_app";
+    this->content = "{ \"uri\": \"/foo\", \"implementation\": \"foo.cpp\" } ";
 }
 
 //
@@ -215,10 +229,15 @@ void http_request::parse_headers()
 //
 
 template <typename RequestType>
-RequestType json_parse_request(http_request& http_resp)
+RequestType json_parse_request(http_request& http_req)
 {
-    RequestType r;
-    return r;
+    const std::string content = http_req.content;
+    tinfra::memory_input_stream mis(content);
+    tinfra::json_lexer lexer(mis);
+    json_mo_parser json_mo_parser(lexer);
+    RequestType req_value;
+    tinfra::mutate("response", req_value, json_mo_parser);
+    return req_value;
 }
 template <typename ResponseType>
 void json_render_response(http_response& http_resp, ResponseType& resp_value)
@@ -240,8 +259,10 @@ http_handler json_transform_func(FUN f)
     };
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    tinfra::public_tracer::process_params(argc, argv);
+
     http_server server("localhost", 8080);
     server.add_handler("/deploy_app", json_transform_func<deployment_request, deploymnent_response>(deploy_app));
 
