@@ -25,6 +25,6 @@ test_http_parser: test_http_parser.o http.o
 clean:
 	rm -rf $(programs) *.d
 
-#-include *.d
+-include *.d
 
 # jedit: :tabSize=8:mode=makefile:

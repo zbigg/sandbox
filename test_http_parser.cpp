@@ -218,6 +218,8 @@ SUITE(tinfra_http) {
 
 int main(int argc, char** argv)
 {
+    tinfra::public_tracer::process_params(argc, argv);
+
     return tinfra::test::test_main(argc, argv);
 }
 // jedit: :tabSize=8:indentSize=4:noTabs=true:mode=c++

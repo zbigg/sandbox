@@ -23,7 +23,8 @@ class lazy_byte_consumer: public interruptible<IMPL, int, tstring> {
     typedef typename interruptible<IMPL,int,tstring>::step_method step_method;
 public:
     lazy_byte_consumer(IMPL& i, step_method s = 0):
-    	interruptible<IMPL,int,tstring>(i,s),
+        interruptible<IMPL,int,tstring>(i,s),
+        last_found_pos_(0),
         waiting_for_(NOTHING)
     {}
     
@@ -36,11 +37,14 @@ public:
     void wait_for_bytes(size_t count, step_method method);
     
     void wait_for_delimiter(tstring const& delim, step_method method);
+
+    size_t last_found_pos() const { return last_found_pos_ };
 protected:
     int call(step_method m, tstring const& input);
 private:
     size_t      waiter_count_;
     std::string waiter_delim_;
+    size_t      last_found_pos_;
     enum wait_type {
         NOTHING,
         ANYTHING,
@@ -75,6 +79,7 @@ int lazy_byte_consumer<IMPL>::call(step_method m, tstring const& input)
                 this->again();
                 return 0;
             }
+            this->last_found_pos_ = pos;
         }
         break;
     }
