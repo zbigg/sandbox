@@ -3,7 +3,7 @@ CC=g++
 COMMON_LINK_COMPILE_FLAGS=-g -std=c++11 -pthread
 CXXFLAGS=-Wall -MD
 LDFLAGS=
-LDLIBS=-ltinfra-regexp -ltinfra -ltinfra-test -ldl -lpcre
+LDLIBS=-ltinfra-regexp -ltinfra-test -ltinfra -ldl -lpcre
 
 CXXFLAGS += $(COMMON_LINK_COMPILE_FLAGS)
 LDFLAGS  += $(COMMON_LINK_COMPILE_FLAGS)
@@ -22,7 +22,6 @@ default: $(programs)
 
 test_http_parser: test_http_parser.o http.o
 
-	
 clean:
 	rm -rf $(programs) *.d
 

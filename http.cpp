@@ -10,10 +10,10 @@ namespace tinfra { namespace http {
 
 tinfra::public_tracer http_tracer("http");
 
-namespace S {
-    symbol content_length("content_length");
-    symbol keep_alive("keep_alive");
-}
+//namespace S {
+//    symbol content_length("content_length");
+//    symbol keep_alive("keep_alive");
+//}
 
 using tinfra::tstring;
 

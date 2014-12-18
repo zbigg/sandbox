@@ -8,12 +8,13 @@
 #ifndef tinfra_lazy_byte_consumer_h_included__
 #define tinfra_lazy_byte_consumer_h_included__
 
-#include <stdexcept>
-#include <string>
+#include "interruptible.h"
 
 #include <tinfra/tstring.h>
 #include "tinfra/trace.h"
-#include <tinfra/interruptible.h>
+
+#include <stdexcept>
+#include <string>
 
 namespace tinfra {
 

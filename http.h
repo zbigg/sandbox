@@ -56,10 +56,10 @@ void write(tinfra::output_stream&, request_header_data const&, size_t content_le
 void write(tinfra::output_stream&, request_data const&);
 void write(tinfra::output_stream&, response_data const& d);
 
-namespace S {
-    extern symbol content_length;
-    extern symbol keep_alive;
-}
+// namespace S {
+    // extern symbol content_length;
+    // extern symbol keep_alive;
+// }
 
 struct protocol_listener {
     virtual void request_line(
