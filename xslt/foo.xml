@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+  
+  <import file="bar.xml"/>
+  <import file="baz.xml"/>
+  
+  <variant name='common'>
+     <cpp-sources>
+        <folder name="foo">
+           <file name="foo.cpp"/>
+           <file name="foo_impl.cpp"/>
+        </folder>
+     </cpp-sources>
+     <res>
+        <file name="foo-common.res"/>
+     </res>
+  </variant>
+  <variant name='android'>
+     <cpp-sources>
+        <folder name="foo">
+           <file name="foo.cpp"/>
+           <file name="foo_android.cpp"/>
+        </folder>
+     </cpp-sources>
+     <java-sources>
+        <folder name="foo/java"/>
+     </java-sources>
+     <res>
+        <file name="foo-android.res"/>
+     </res>
+  </variant>
+  <variant name='iphone'>
+     <cpp-sources>
+        <folder name="foo">
+           <file name="foo.cpp"/>
+           <file name="foo_iphone.cpp"/>
+           <file name="foo_iphone_int.mm"/>
+        </folder>
+     </cpp-sources>
+     <res>
+        <file name="foo-iphone.res"/>
+     </res>
+  </variant>
+</module>
