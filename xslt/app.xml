@@ -4,12 +4,26 @@
   <import file="foo.xml"/>
   
   <variant name='common'>
+     <name>app</name>
+     <some_param>fjeifjeifjeii</some_param>
      <cpp-sources>
         <folder name="src/">
            <file name="App.cpp"/>
         </folder>
      </cpp-sources>
+     <java-sources/>
+     <res/>
   </variant>
-  <variant name='android'/>
-  <variant name='iphone'/>
+  <variant name='android'>
+     <google-some-store-key>fjiefjiefj</google-some-store-key>
+     <cpp-sources/>
+     <java-sources/>
+     <res/>
+  </variant>
+  <variant name='iphone'>
+     <jablko-store-key>fjiefjiefj</jablko-store-key>
+     <cpp-sources/>
+     <java-sources/>
+     <res/>
+  </variant>
 </app>

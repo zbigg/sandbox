@@ -5,18 +5,13 @@
 
     <xsl:template match="import" mode="traverse">
         <xsl:param name="file" />
-        <xsl:message>import <xsl:value-of select="@file"/> (f=<xsl:value-of select="@file"/>)</xsl:message>
-        <xsl:comment>begin of <xsl:value-of select="@file"/></xsl:comment>
         <xsl:variable name="filedoc" select="document(@file)/module"/>
         <xsl:apply-templates select="$filedoc/import" mode="traverse"/>
-        <xsl:copy-of select="$filedoc/*"/>
-        <xsl:message>end of import</xsl:message>
-        <xsl:comment> end of <xsl:value-of select="@file"/></xsl:comment>
+        <xsl:copy-of select="$filedoc/variant"/>
     </xsl:template>
 
     <xsl:template match="variant" mode="traverse">
         <xsl:param name="name"/>
-        <xsl:message>processing root variant <xsl:value-of select="@name"/></xsl:message>
         <xsl:copy-of select="."/>
     </xsl:template>
 
@@ -25,21 +20,49 @@
        <xsl:apply-templates select="/app/variant"  mode="traverse"/>
     </xsl:variable>
 
+    <!--
+        aggregated nodes
+    -->
+    <xsl:template match="cpp-sources" mode="merge">
+      <xsl:param name="current_variant"/>
+      <cpp-sources>
+         <xsl:copy-of select="$all-roots/variant[@name=$current_variant]/cpp-sources/*"/>
+      </cpp-sources>
+    </xsl:template>
+    <xsl:template match="java-sources" mode="merge">
+      <xsl:param name="current_variant"/>
+      <java-sources>
+         <xsl:copy-of select="$all-roots/variant[@name=$current_variant]/java-sources/*"/>
+      </java-sources>
+    </xsl:template>
+    <xsl:template match="res" mode="merge">
+      <xsl:param name="current_variant"/>
+      <res>
+         <xsl:copy-of select="$all-roots/variant[@name=$current_variant]/res/*"/>
+      </res>
+    </xsl:template>
+
+    <xsl:template match="node()|@*" mode="merge">
+       <!--<xsl:message>3 processing element <xsl:value-of select="name(.)"/> with relocation "<xsl:value-of select="$priv-path-prefix"/>"</xsl:message>-->
+       <xsl:copy>
+           <xsl:apply-templates select="@*"/>
+           <xsl:apply-templates/>
+       </xsl:copy>
+    </xsl:template>
+
     <xsl:template match="/app/variant">
+        <xsl:param name="name"/>
+        <xsl:message>processing root variant <xsl:value-of select="@name"/></xsl:message>
         <xsl:variable name="namex" select="@name"/>
         <variant>
-           <xsl:attribute name="name" select="@name"/>
-           <cpp-sources>
-               <xsl:copy-of select="$all-roots/variant[@name=$namex]/cpp-sources/*"/>
-           </cpp-sources>
-           <java-sources>
-               <xsl:copy-of select="$all-roots/variant[@name=$namex]/java-sources/*"/>
-           </java-sources>
-           <res>
-               <xsl:copy-of select="$all-roots/variant[@name=$namex]/res/*"/>
-           </res>
+           <xsl:apply-templates select="@*"/>
+
+           <xsl:apply-templates select="*" mode="merge">
+               <xsl:with-param name="current_variant" select="$namex"/>
+           </xsl:apply-templates>
         </variant>
     </xsl:template>
+
 
     <xsl:template match="node()|@*">
        <!--<xsl:message>3 processing element <xsl:value-of select="name(.)"/> with relocation "<xsl:value-of select="$priv-path-prefix"/>"</xsl:message>-->
