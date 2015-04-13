@@ -1,6 +1,6 @@
 
 
-app-out.xml: app.xml foo.xml process.xsl
+app-out.xml: app.xml foo.xml process.xsl bar.xml baz.xml
 	java -jar contrib/saxon9he.jar $< process.xsl > $@
 
 app-out.xml: | contrib/saxon9he.jar

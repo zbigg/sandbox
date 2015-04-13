@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+  <variant name='common'>
+     <cpp-sources>
+        <folder name="bar">
+           <file name="bar.cpp"/>
+        </folder>
+     </cpp-sources>
+  </variant>
+  <variant name='android'>
+     <cpp-sources>
+        <folder name="bar">
+           <file name="bar.cpp"/>
+           <file name="bar_androif.cpp"/>
+        </folder>
+     </cpp-sources>
+     <java-sources>
+        <folder name="bar/java"/>
+     </java-sources>
+     <res>
+        <file name="bar-android.res"/>
+     </res>
+  </variant>
+  <variant name='iphone'>
+     <cpp-sources>
+        <folder name="bar">
+           <file name="bar.cpp"/>
+           <file name="bar_iphone.cpp"/>
+           <file name="bar_iphone_int.mm"/>
+        </folder>
+     </cpp-sources>
+     <res>
+        <file name="bar-iphone.res"/>
+     </res>
+  </variant>
+</module>

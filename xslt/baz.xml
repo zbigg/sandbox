@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+  <variant name='common'>
+     <cpp-sources>
+        <folder name="baz">
+           <file name="baz.cpp"/>
+        </folder>
+     </cpp-sources>
+  </variant>
+  <variant name='android'>
+     <cpp-sources>
+        <folder name="baz">
+           <file name="baz.cpp"/>
+           <file name="baz_androif.cpp"/>
+        </folder>
+     </cpp-sources>
+     <java-sources>
+        <folder name="baz/java"/>
+     </java-sources>
+     <res>
+        <file name="baz-android.res"/>
+     </res>
+  </variant>
+  <variant name='iphone'>
+     <cpp-sources>
+        <folder name="baz">
+           <file name="baz.cpp"/>
+           <file name="baz_iphone.cpp"/>
+           <file name="baz_iphone_int.mm"/>
+        </folder>
+     </cpp-sources>
+     <res>
+        <file name="baz-iphone.res"/>
+     </res>
+  </variant>
+</module>
