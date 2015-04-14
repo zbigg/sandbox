@@ -3,7 +3,7 @@
 
     <xsl:output method="xml" indent="yes"/>
 
-    <xsl:template match="import" mode="traverse">
+    <xsl:template match="import" mode="traverse" >
         <xsl:param name="file" />
         <xsl:variable name="filedoc" select="document(@file)/module"/>
         <xsl:apply-templates select="$filedoc/import" mode="traverse"/>
@@ -22,6 +22,9 @@
 
     <!--
         aggregated nodes
+
+        maintainer note: this template have to be defined for
+        any merged sequence under variants
     -->
     <xsl:template match="cpp-sources" mode="merge">
       <xsl:param name="current_variant"/>
@@ -50,15 +53,14 @@
        </xsl:copy>
     </xsl:template>
 
-    <xsl:template match="/app/variant">
+    <xsl:template match="/app/variant" saxon:trace="yes">
         <xsl:param name="name"/>
         <xsl:message>processing root variant <xsl:value-of select="@name"/></xsl:message>
-        <xsl:variable name="namex" select="@name"/>
         <variant>
            <xsl:apply-templates select="@*"/>
 
            <xsl:apply-templates select="*" mode="merge">
-               <xsl:with-param name="current_variant" select="$namex"/>
+               <xsl:with-param name="current_variant" select="@name"/>
            </xsl:apply-templates>
         </variant>
     </xsl:template>
