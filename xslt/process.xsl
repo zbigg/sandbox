@@ -53,7 +53,7 @@
        </xsl:copy>
     </xsl:template>
 
-    <xsl:template match="/app/variant" saxon:trace="yes">
+    <xsl:template match="/app/variant">
         <xsl:param name="name"/>
         <xsl:message>processing root variant <xsl:value-of select="@name"/></xsl:message>
         <variant>
