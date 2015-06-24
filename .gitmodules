@@ -1,0 +1,3 @@
+[submodule "xbmath"]
+	path = xbmath
+	url = ./xbmath

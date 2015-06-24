@@ -1,9 +1,9 @@
 CC=g++
 
-COMMON_LINK_COMPILE_FLAGS=-g -std=c++11 -pthread
+COMMON_LINK_COMPILE_FLAGS=-g -O3 -std=c++11 `pkg-config --cflags tinfra tinfra-regexp`
 CXXFLAGS=-Wall -MD
 LDFLAGS=
-LDLIBS=-ltinfra-regexp -ltinfra-test -ltinfra -ldl -lpcre
+LDLIBS=`pkg-config --libs tinfra tinfra-regexp`
 
 CXXFLAGS += $(COMMON_LINK_COMPILE_FLAGS)
 LDFLAGS  += $(COMMON_LINK_COMPILE_FLAGS)
@@ -15,6 +15,9 @@ programs = $(patsubst %.cpp,%,$(sources_with_main))
 
 programs += atomic_segregated_memory_pool_mutex atomic_segregated_memory_atomic apfoo
 
+programs += pe493
+
+pe493: pe493.o xbmath/xbmath.cpp
 
 apfoo: apfoo.o json_mo_parser.o
 
