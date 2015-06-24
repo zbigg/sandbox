@@ -27,7 +27,7 @@ std::ostream& operator<<(std::ostream& s, cuboid const& c)
     return s << "(" << c.x << "," << c.y << "," << c.z << ")(" << c.dx << "," << c.dy << "," << c.dz << ")";
 }
 
-#define my_assert(predicate, val) do { if( !(predicate) ) { std::cerr << "assert failed, " #val "=" << val << " at " << __LINE__ << "\n"; std::abort(); } } while(0)
+#define my_assert(predicate, val) do { if( !(predicate) ) { std::cerr << "assert failed, " #val "=" << val << " at " << __LINE__ << std::endl; std::abort(); } } while(0)
 bool mark( std::vector<bool>& space, cuboid c, int p )
 {
     const bigint PN = 10400;
@@ -55,16 +55,18 @@ bool mark( std::vector<bool>& space, cuboid c, int p )
 int main()
 {
      const int SN = 300000;
-     const int CN = 100;
+     const int CN = 50000;
 
      std::vector<int> lfs( SN + 1 );
 
+     std::cout << "generating LFC, SN=" << SN << std::endl;
      lagged_fibinaccci_generator(lfs, SN);
 
      // for(int i = 1; i <= SN ; ++i ) {
      //    std::cout << " " << lfs[i];
      //}
 
+     std::cout << "generating cuboids, CN=" << CN << std::endl;
      std::vector<cuboid> c( CN + 1 );
      for(int i = 1 ; i <= CN; ++i ) {
          c[i] = { lfs[ 6*i - 5 ] % 10000,
@@ -81,22 +83,22 @@ int main()
          assert( c[i].dz < 400 );
      }
 
-     std::cout << "c1=" << c[1] << "\n";
-     std::cout << "c2=" << c[2] << "\n";
+     std::cout << "c1=" << c[1] << std::endl;
+     std::cout << "c2=" << c[2] << std::endl;
 
      const bigint N = 10000+400;
      const bigint N3 = N*N*N;
      const bigint PS = N3 / 1040;
 
-     std::cout << "PS=" << PS << "\n";
+     std::cout << "PS=" << PS << std::endl;
      const bigint P = ( N3 / PS) + 1;
      bigint V = 0;
      for( int p = 0; p < P; p++ ) {
-         std::cout << "p=" << p << "/" << P << "...\n";
+         std::cout << "p=" << p << "/" << P << "..." << std::endl;
          std::vector<bool> space(PS + 1, false);
          for( int ci = 1; ci <= CN; ci++ ) {
              if( mark( space, c[ci], p ) ) {
-                 std::cout << "c[" << ci << "] marked\n";
+                 std::cout << "c[" << ci << "] marked" << std::endl;
              }
          }
          bigint pV = 0;
@@ -106,7 +108,7 @@ int main()
              }
          }
          V += pV;
-         std::cout << " pV=" << pV << ", v=" << V << "...\n";
+         std::cout << " pV=" << pV << ", v=" << V << "..." << std::endl;
      }
-     std::cout << "result: V=" << V << "\n";
+     std::cout << "result: V=" << V << std::endl;
 }
