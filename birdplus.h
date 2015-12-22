@@ -8,6 +8,8 @@
 #include <vector>
 #include <exception>
 
+#include <iostream>
+
 namespace birdplus {
 
 /*
@@ -131,10 +133,16 @@ struct PromiseStateBase {
     std::function<void(std::exception_ptr)> reject_callback;
     std::exception_ptr exception;
     bool forward_errors = true;
-
+    bool exception_handled = false;
+    ~PromiseStateBase() {
+        if( exception && !exception_handled ) {
+            std::cerr << "some promise rejected, but not handled aaaaa!\n";
+        }
+    }
     void reject(std::exception_ptr eptr) {
         assert( !exception );
         if( reject_callback ) {
+            this->exception_handled = true;
             reject_callback(eptr);
         }
         this->exception = eptr;
@@ -211,6 +219,7 @@ public:
         typename PromisifyType<decltype(f(udmmy))>::type result;
 
         if( state->forward_errors && state->exception ) {
+            state->exception_handled = true;
             result.reject(state->exception);
         } else if( state->value) {
             detail::resolve_helper(result,f,*state->value.get());
@@ -308,6 +317,7 @@ public:
         typename PromisifyType<decltype(f())>::type result;
 
         if( state->exception && !state->reject_callback) {
+            state->exception_handled = true;
             result.reject(state->exception);
         } else if( state->resolved ) {
             detail::resolve_helper(result,f);
@@ -343,6 +353,7 @@ public:
         }
 
         if( state->exception) {
+            state->exception_handled = true;
             detail::resolve_helper(result, f, state->exception);
         } else {
             state->add_reject_callback([=](std::exception_ptr eptr) {
