@@ -6,6 +6,7 @@
 #include <memory>
 #include <cassert>
 #include <vector>
+#include <exception>
 
 namespace birdplus {
 
@@ -93,7 +94,66 @@ namespace detail {
         resolve_helper_int<T,F,V>::resolve(p,f,v);
     }
 
+
+    //
+    // function_traits
+    //     function_traits<T>::result_type
+    //     function_traits<T>::arg<0>::type
+    //
+    //  http://stackoverflow.com/questions/7943525/is-it-possible-to-figure-out-the-parameter-type-and-return-type-of-a-lambda
+
+    template <typename T>
+    struct function_traits
+        : public function_traits<decltype(&T::operator())>
+    {};
+    // For generic types, directly use the result of the signature of its 'operator()'
+
+    template <typename ClassType, typename ReturnType, typename... Args>
+    struct function_traits<ReturnType(ClassType::*)(Args...) const>
+    // we specialize for pointers to member function
+    {
+        enum { arity = sizeof...(Args) };
+        // arity is the number of arguments.
+
+        typedef ReturnType result_type;
+
+        template <size_t i>
+        struct arg
+        {
+            typedef typename std::tuple_element<i, std::tuple<Args...>>::type type;
+            // the i-th argument is equivalent to the i-th tuple element of a tuple
+            // composed of those arguments.
+        };
+    };
 }
+
+struct PromiseStateBase {
+    std::function<void(std::exception_ptr)> reject_callback;
+    std::exception_ptr exception;
+    bool forward_errors = true;
+
+    void reject(std::exception_ptr eptr) {
+        assert( !exception );
+        if( reject_callback ) {
+            reject_callback(eptr);
+        }
+        this->exception = eptr;
+    }
+    template <typename F>
+    void add_reject_callback(F f) {
+        if( this->reject_callback ) {
+            auto old_callback = this->reject_callback;
+            this->reject_callback = [=](std::exception_ptr eptr){
+                old_callback(eptr);
+                f(eptr);
+            };
+        } else {
+            this->reject_callback = [=](std::exception_ptr eptr) {
+                f(eptr);
+            };
+        }
+    }
+};
 
 //
 // Promise<T>
@@ -101,14 +161,14 @@ namespace detail {
 
 template <typename T>
 class Promise {
-    struct SharedState {
-        std::function<void(T const&)> callback;
+    struct SharedState: public PromiseStateBase {
+        std::function<void(T const&)> accept_callback;
         std::unique_ptr<T> value;
 
         void resolve(T v) {
-            assert(! value );
-            if( callback ) {
-                callback(v);
+            assert(! value && !exception);
+            if( accept_callback ) {
+                accept_callback(v);
             }
             value.reset(new T(std::move(v)));
         }
@@ -135,23 +195,62 @@ public:
 
         return *this;
     }
+
+    void reject(std::exception_ptr eptr) const {
+        state->reject(eptr);
+    }
+
+    template <typename ET>
+    void reject(ET e) const {
+        state->reject(std::make_exception_ptr(e));
+    }
+
     static T udmmy;
     template <typename F>
     auto then(F f) const -> typename PromisifyType<decltype(f(udmmy))>::type {
         typename PromisifyType<decltype(f(udmmy))>::type result;
 
-        if( state->value) {
+        if( state->forward_errors && state->exception ) {
+            result.reject(state->exception);
+        } else if( state->value) {
             detail::resolve_helper(result,f,*state->value.get());
-        } else if( state->callback ) {
-            auto old_callback = state->callback;
-            state->callback = [=](T const& v) {
-                old_callback(v);
-                detail::resolve_helper(result,f, v);
-            };
         } else {
-            state->callback = [=](T const& v) {
-                detail::resolve_helper(result,f, v);
-            };
+            if( state->accept_callback ) {
+                auto old_callback = state->accept_callback;
+                state->accept_callback = [=](T const& v) {
+                    old_callback(v);
+                    detail::resolve_helper(result,f, v);
+                };
+            } else {
+                state->accept_callback = [=](T const& v) {
+                    detail::resolve_helper(result,f, v);
+                };
+            }
+            if( state->forward_errors ) {
+                state->add_reject_callback([=](std::exception_ptr eptr){
+                    result.reject(eptr);
+                });
+            }
+
+        }
+        return result;
+    }
+
+    template <typename F> // F: (exception_ptr) -> R
+    auto error(F f) const -> typename PromisifyType<decltype(f())>::type {
+        typename PromisifyType<decltype(f())>::type result;
+
+        if( state->forward_errors ) {
+            state->reject_callback = nullptr;
+            state->forward_errors = false;
+        }
+
+        if( state->exception) {
+            detail::resolve_helper(result, f, state->exception);
+        } else {
+            state->add_reject_callback([=](std::exception_ptr eptr) {
+                detail::resolve_helper(result, f, eptr);
+            });
         }
         return result;
     }
@@ -162,14 +261,14 @@ public:
 //
 template <>
 class Promise<void> {
-    struct SharedState {
-        std::function<void()> callback;
+    struct SharedState: public PromiseStateBase {
+        std::function<void()>                   accept_callback;
         bool resolved = false;
 
         void resolve() {
-            assert(!resolved);
-            if( callback ) {
-                callback();
+            assert(!resolved && !exception);
+            if( accept_callback ) {
+                accept_callback();
             }
             resolved = true;
         }
@@ -195,22 +294,60 @@ public:
         return *this;
     }
 
+    void reject(std::exception_ptr eptr) const {
+        state->reject(eptr);
+    }
+
+    template <typename ET>
+    void reject(ET e) const {
+        state->reject(std::make_exception_ptr(e));
+    }
+
     template <typename F> // F: () -> R
     auto then(F f) const -> typename PromisifyType<decltype(f())>::type {
         typename PromisifyType<decltype(f())>::type result;
 
-        if( state->resolved) {
+        if( state->exception && !state->reject_callback) {
+            result.reject(state->exception);
+        } else if( state->resolved ) {
             detail::resolve_helper(result,f);
-        } else if( state->callback ) {
-            auto old_callback = state->callback;
-            state->callback = [=]() {
-                old_callback();
-                detail::resolve_helper(result,f);
-            };
+        } else  {
+            if( state->accept_callback ) {
+                auto old_callback = state->accept_callback;
+                state->accept_callback = [=]() {
+                    old_callback();
+                    detail::resolve_helper(result,f);
+                };
+            } else {
+                state->accept_callback = [=]() {
+                    detail::resolve_helper(result,f);
+                };
+            }
+
+            if( state->forward_errors ) {
+                state->add_reject_callback([=](std::exception_ptr eptr) {
+                    result.reject(eptr);
+                });
+            }
+        }
+        return result;
+    }
+
+    template <typename F> // F: (exception_ptr) -> R
+    auto error(F f) const -> typename PromisifyType<typename detail::function_traits<F>::result_type>::type {
+        typename PromisifyType<typename detail::function_traits<F>::result_type>::type result;
+
+        if( state->forward_errors ) {
+            state->reject_callback = nullptr;
+            state->forward_errors = false;
+        }
+
+        if( state->exception) {
+            detail::resolve_helper(result, f, state->exception);
         } else {
-            state->callback = [=]() {
-                detail::resolve_helper(result,f);
-            };
+            state->add_reject_callback([=](std::exception_ptr eptr) {
+                detail::resolve_helper(result, f, eptr);
+            });
         }
         return result;
     }
@@ -222,23 +359,40 @@ namespace detail {
 
     template <typename T, typename F, typename V>
     void resolve_helper_int<T,F,V>::resolve(Promise<T> const& p, F f, V v) {
-        p.resolve(f(std::move(v)));
+        try {
+            p.resolve(f(std::move(v)));
+        } catch(...) {
+            p.reject(std::current_exception());
+        }
     };
 
     template <typename T, typename F>
     void resolve_helper_int<T,F,void>::resolve(Promise<T> const& p, F f) {
-        p.resolve(f());
+        try {
+            p.resolve(f());
+        } catch(...) {
+            p.reject(std::current_exception());
+        }
     };
     template <typename F, typename V>
     void resolve_helper_int<void,F,V>::resolve(Promise<void> const& p, F f, V v) {
-        f(std::move(v));
-        p.resolve();
+        try {
+            f(std::move(v));
+            p.resolve();
+        } catch(...) {
+            p.reject(std::current_exception());
+        }
+
     }
 
     template <typename F>
     void resolve_helper_int<void,F,void>::resolve(Promise<void> const& p, F f) {
-        f();
-        p.resolve();
+        try {
+            f();
+            p.resolve();
+        } catch(...) {
+            p.reject(std::current_exception());
+        }
     }
 
     template <typename T>

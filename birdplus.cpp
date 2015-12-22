@@ -20,10 +20,22 @@ int main()
     using birdplus::reduce;
 
     reduce(map<int,int>(vec, [](int v) -> int {
+        // throw 3;
         return 2*v;
     }), 0, [](int v, int acc) -> int {
+        std::cerr << "bbb!\n";
+        // throw 2;
         return acc+v;
     }).then([](int result) {
+        std::cerr << "aaa!\n";
+        throw 1;
         std::cout << "reduce: " << result << "\n";
+    }).error([](std::exception_ptr eptr) {
+        std::cerr << "error caought" << "\n";
+        try {
+            std::rethrow_exception(eptr);
+        } catch(int a) {
+            std::cerr << "error: " << a << "\n";
+        }
     });
 }
