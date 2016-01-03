@@ -11,6 +11,32 @@
 ///    ssd disable NAME command        -- add persitent service
 ///
 
+/*
+    Requirements
+     I1
+       to start processes so they appear as daemons
+       to restart crashed/exited processes
+       to kill (term) processes when ssd exits
+       to kill (kill!) processes not responding to term signal after certain timeout
+       to read config file (basic, only process name & command)
+     I2
+       to restart process with increased delay (configurable)
+       term timeout
+       kill timeout
+       to start many instances
+     I?
+       CLI control via named pipe / unix socket
+       environment
+       working dir
+       composable files -> include/import directive
+       config file is dir -> include /dir/*
+       process group / kill whole process group
+       to be init replacement, look docker
+       direct syslog output to
+        /dev/log
+        /var/run/syslog on OSX
+*/
+
 #include <tinfra/tstring.h>
 #include <tinfra/fmt.h>
 #include <vector>
@@ -232,7 +258,7 @@ sig_atomic_t terminate_requested = 0;
 static void sigterm_handler(int signo, siginfo_t *, void *)
 {
     // log("sigterm (%s)", signo);
-    std::cerr << "sigerm\n";
+    std::cerr << "sigterm\n";
     terminate_requested = 1;
 }
 
