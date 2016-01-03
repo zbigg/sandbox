@@ -267,23 +267,30 @@ void loop(runtime_state& rts)
     sigprocmask(SIG_BLOCK, &mask, &old_mask);
 
     start_outstanding_processes(rts);
-    do {
-        if( terminate_requested && rts.running.size() == 0 ) {
-            break;
-        }
-        if( !some_children_exited ) {
-            sigsuspend(&old_mask);
-        }
-        if( some_children_exited ) {
-            some_children_exited = 0;
-            process_exited_processes(rts);
-        }
+    while( true ) {
+        // maybe terminate ?
         if( terminate_requested ) {
+            if( rts.running.size() == 0 ) {
+                break;
+            }
             graceful_terminate_processes(rts);
-        } else {
+        }
+
+        // maybe start unstarted things
+        if( !terminate_requested ) {
             start_outstanding_processes(rts);
         }
-    } while( true );
+
+        // process exit signals
+        if ( some_children_exited ) {
+            some_children_exited = 0;
+            process_exited_processes(rts);
+            continue;
+        }
+
+        // wait for next events
+        sigsuspend(&old_mask);
+    }
     sigprocmask(SIG_UNBLOCK, &mask, NULL);
     log("all done, exiting");
 }
