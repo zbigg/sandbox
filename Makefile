@@ -4,6 +4,7 @@ COMMON_LINK_COMPILE_FLAGS=-g -O3 -std=c++11 `pkg-config --cflags tinfra tinfra-r
 CXXFLAGS=-Wall -MMD
 LDFLAGS=
 LDLIBS=`pkg-config --libs tinfra tinfra-regexp`
+TEST_LDLIBS=`pkg-config --libs tinfra tinfra-test tinfra-regexp`
 
 CXXFLAGS += $(COMMON_LINK_COMPILE_FLAGS)
 LDFLAGS  += $(COMMON_LINK_COMPILE_FLAGS)
@@ -22,7 +23,10 @@ apfoo: apfoo.o json_mo_parser.o
 
 birdplus: birdplus.o
 birdplus:
-	$(CXX) $(LDFLAGS) $< $(LDLIBS)
+	$(CXX) $(LDFLAGS) $< $(LDLIBS) -o $@
+
+promise_test: promise_test.o birdplus.o
+	$(CXX) $(LDFLAGS) $< $(TEST_LDLIBS) -o $@
 
 default: $(programs)
 
