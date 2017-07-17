@@ -19,6 +19,12 @@ programs += pe493
 
 pe493: pe493.o xbmath/xbmath.cpp
 
+programs += hiredis
+
+hiredis: hiredis.o birdplus.o
+	$(CXX) $(LDFLAGS) $< $(LDLIBS) -lhiredis -luv -o $@
+
+
 apfoo: apfoo.o json_mo_parser.o
 
 birdplus: birdplus.o
