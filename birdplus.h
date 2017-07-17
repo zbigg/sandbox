@@ -190,6 +190,22 @@ public:
 
     Promise& operator=(Promise const&) = default;
 
+    template <typename ExecutorFn>
+    Promise(ExecutorFn executor):
+        state(new SharedState)
+    {
+        const auto resolve = [this](T value) {
+            this->settle(value);
+        };
+        const auto reject = [this](std::exception_ptr eptr) {
+            this->reject(eptr);
+        };
+        try {
+            executor(resolve, reject);
+        } catch( ... ) {
+            this->reject(std::current_exception());
+        }
+    }
     static Promise<T> resolve(T v) {
         Promise<T> tmp;
         tmp.settle(v);
@@ -251,16 +267,15 @@ public:
         }
         return result;
     }
-
+    static std::exception_ptr uddmy2;
     template <typename F> // F: (exception_ptr) -> R
-    auto error(F f) const -> typename PromisifyType<decltype(f())>::type {
-        typename PromisifyType<decltype(f())>::type result;
+    auto error(F f) const -> typename PromisifyType<decltype(f(uddmy2))>::type {
+        typename PromisifyType<decltype(f(uddmy2))>::type result;
 
         if( state->forward_errors ) {
             state->reject_callback = nullptr;
             state->forward_errors = false;
         }
-
         if( state->exception) {
             detail::resolve_helper(result, f, state->exception);
         } else {
@@ -295,6 +310,22 @@ public:
     Promise(Promise<void> const&) = default;
     Promise(Promise<void>&&) = default;
 
+    template <typename ExecutorFn>
+    Promise(ExecutorFn executor):
+        state(new SharedState)
+    {
+        const auto resolve = [this]() {
+            this->settle();
+        };
+        const auto reject = [this](std::exception_ptr eptr) {
+            this->reject(eptr);
+        };
+        try {
+            executor(resolve, reject);
+        } catch( ... ) {
+            this->reject(std::current_exception());
+        }
+    }
     static Promise<void> resolve() {
         Promise<void> tmp;
         tmp.settle();

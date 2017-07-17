@@ -1,7 +1,7 @@
 CC=g++
 
-COMMON_LINK_COMPILE_FLAGS=-g -O3 -std=c++11 `pkg-config --cflags tinfra tinfra-regexp`
-CXXFLAGS=-std=c++11 -Wall -MMD
+COMMON_LINK_COMPILE_FLAGS=-g -O0 -std=c++14 `pkg-config --cflags tinfra tinfra-regexp`
+CXXFLAGS=-Wall -MMD
 LDFLAGS=
 LDLIBS=`pkg-config --libs tinfra tinfra-regexp`
 TEST_LDLIBS=`pkg-config --libs tinfra tinfra-test tinfra-regexp`
