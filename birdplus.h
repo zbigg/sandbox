@@ -7,6 +7,7 @@
 #include <cassert>
 #include <vector>
 #include <exception>
+#include <algorithm>
 
 #include <iostream>
 
@@ -173,7 +174,7 @@ class Promise {
         std::function<void(T const&)> accept_callback;
         std::unique_ptr<T> value;
 
-        void resolve(T v) {
+        void settle(T v) {
             assert(! value && !exception);
             if( accept_callback ) {
                 accept_callback(v);
@@ -189,16 +190,22 @@ public:
 
     Promise& operator=(Promise const&) = default;
 
-    Promise<T> const& resolve(T v) const {
-        state->resolve(v);
+    static Promise<T> resolve(T v) {
+        Promise<T> tmp;
+        tmp.settle(v);
+        return tmp;
+    }
+
+    Promise<T> const& settle(T v) const {
+        state->settle(v);
         return *this;
     }
 
-    Promise<T> const& resolve(Promise<T> p) const {
+    Promise<T> const& settle(Promise<T> p) const {
         std::shared_ptr<SharedState> state_ref(state);
 
         p.then([state_ref](T v) {
-            state_ref->resolve(v);
+            state_ref->settle(v);
         });
 
         return *this;
@@ -272,14 +279,14 @@ template <>
 class Promise<void> {
     struct SharedState: public PromiseStateBase {
         std::function<void()>                   accept_callback;
-        bool resolved = false;
+        bool settled = false;
 
-        void resolve() {
-            assert(!resolved && !exception);
+        void settle() {
+            assert(!settled && !exception);
             if( accept_callback ) {
                 accept_callback();
             }
-            resolved = true;
+            settled = true;
         }
     };
     std::shared_ptr<SharedState> state;
@@ -288,16 +295,22 @@ public:
     Promise(Promise<void> const&) = default;
     Promise(Promise<void>&&) = default;
 
-    Promise<void> const& resolve() const {
-        state->resolve();
+    static Promise<void> resolve() {
+        Promise<void> tmp;
+        tmp.settle();
+        return tmp;
+    }
+
+    Promise<void> const& settle() const {
+        state->settle();
         return *this;
     }
 
-    Promise<void> const& resolve(Promise<void> p) const {
+    Promise<void> const& settle(Promise<void> p) const {
         std::shared_ptr<SharedState> state_ref(state);
 
         p.then([state_ref]() {
-            state_ref->resolve();
+            state_ref->settle();
         });
 
         return *this;
@@ -319,7 +332,7 @@ public:
         if( state->exception && !state->reject_callback) {
             state->exception_handled = true;
             result.reject(state->exception);
-        } else if( state->resolved ) {
+        } else if( state->settled ) {
             detail::resolve_helper(result,f);
         } else  {
             if( state->accept_callback ) {
@@ -371,7 +384,7 @@ namespace detail {
     template <typename T, typename F, typename V>
     void resolve_helper_int<T,F,V>::resolve(Promise<T> const& p, F f, V v) {
         try {
-            p.resolve(f(std::move(v)));
+            p.settle(f(std::move(v)));
         } catch(...) {
             p.reject(std::current_exception());
         }
@@ -380,7 +393,7 @@ namespace detail {
     template <typename T, typename F>
     void resolve_helper_int<T,F,void>::resolve(Promise<T> const& p, F f) {
         try {
-            p.resolve(f());
+            p.settle(f());
         } catch(...) {
             p.reject(std::current_exception());
         }
@@ -389,7 +402,7 @@ namespace detail {
     void resolve_helper_int<void,F,V>::resolve(Promise<void> const& p, F f, V v) {
         try {
             f(std::move(v));
-            p.resolve();
+            p.settle();
         } catch(...) {
             p.reject(std::current_exception());
         }
@@ -400,7 +413,7 @@ namespace detail {
     void resolve_helper_int<void,F,void>::resolve(Promise<void> const& p, F f) {
         try {
             f();
-            p.resolve();
+            p.settle();
         } catch(...) {
             p.reject(std::current_exception());
         }
@@ -410,7 +423,7 @@ namespace detail {
     struct to_promise_helper {
         static Promise<T> to_promise(T v) {
             Promise<T> p;
-            p.resolve(std::move(v));
+            p.settle(std::move(v));
             return p;
         }
     };
@@ -426,7 +439,7 @@ namespace detail {
 //
 // to_promise<T>(v) -> Promise<T>
 //
-// for actual value, return resolved promise
+// for actual value, return settled promise
 // for promise, just return it
 //
 

@@ -15,6 +15,25 @@ SUITE(promise) {
     using birdplus::to_promise;
     using birdplus::Promise;
 
+    //
+    // Promise/A/C++ API
+    //
+    //  Promise<type>::resolve(...) as Promise.resolve()
+    //
+    TEST(promise_a_cpp_resolve) {
+        Promise<int>::resolve(5)
+            .then([](int v) {
+                CHECK_EQUAL(5, v);
+            });
+        bool reached = false;
+
+        Promise<void>::resolve()
+            .then([&reached]() {
+                reached = true;
+            });
+        CHECK(reached);
+    }
+    
     TEST(empty_promise) {
         reached_mark mark;
         to_promise(22).then([&mark](int v) {
