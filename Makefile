@@ -15,15 +15,15 @@ programs = $(patsubst %.cpp,%,$(sources_with_main))
 
 programs += atomic_segregated_memory_pool_mutex atomic_segregated_memory_atomic apfoo
 
-programs += pe493
+programs += pe493 pe493_2
 
 pe493: pe493.o xbmath/xbmath.cpp
+pe493_2: pe493_2.o
 
 programs += hiredis
 
 hiredis: hiredis.o birdplus.o
 	$(CXX) $(LDFLAGS) $< $(LDLIBS) -lhiredis -luv -o $@
-
 
 apfoo: apfoo.o json_mo_parser.o
 
