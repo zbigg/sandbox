@@ -145,6 +145,7 @@ struct PromiseStateBase {
         if( reject_callback ) {
             this->exception_handled = true;
             reject_callback(eptr);
+            reject_callback = nullptr;
         }
         this->exception = eptr;
     }
@@ -178,6 +179,7 @@ class Promise {
             assert(! value && !exception);
             if( accept_callback ) {
                 accept_callback(v);
+                accept_callback = nullptr;
             }
             value.reset(new T(std::move(v)));
         }
@@ -300,6 +302,7 @@ class Promise<void> {
             assert(!settled && !exception);
             if( accept_callback ) {
                 accept_callback();
+                accept_callback = nullptr;
             }
             settled = true;
         }
