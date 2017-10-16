@@ -50,7 +50,7 @@ SUITE(promise) {
     
     TEST(promise_a_cpp_new_promise) {
         bool reached_constructor = false;
-        auto p = new Promise<int>([&](auto resolve, auto reject) {
+        auto p = std::make_unique<Promise<int>>([&](auto resolve, auto reject) {
             reached_constructor = true;
             resolve(55);
         });
@@ -65,7 +65,7 @@ SUITE(promise) {
     }
     TEST(promise_a_cpp_new_promise_fail) {
         bool reached_constructor = false;
-        auto p = new Promise<int>([&](auto resolve, auto reject) {
+        auto p = std::make_unique<Promise<int>>([&](auto resolve, auto reject) {
             reached_constructor = true;
             throw std::runtime_error("fail");
             CHECK(false);
@@ -92,7 +92,7 @@ SUITE(promise) {
     }
     TEST(promise_a_cpp_new_void_promise) {
         bool reached_constructor = false;
-        auto p = new Promise<void>([&](auto resolve, auto reject) {
+        auto p = std::make_unique<Promise<void>>([&](auto resolve, auto reject) {
             reached_constructor = true;
             resolve();
         });
@@ -106,7 +106,7 @@ SUITE(promise) {
     }
     TEST(promise_a_cpp_new_void_promise_fail) {
         bool reached_constructor = false;
-        auto p = new Promise<void>([&](auto resolve, auto reject) {
+        auto p = std::make_unique<Promise<void>>([&](auto resolve, auto reject) {
             reached_constructor = true;
             throw std::runtime_error("fail");
             CHECK(false);
