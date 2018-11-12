@@ -8,11 +8,33 @@ some_db = (
     </database>
 )
 
-some_os = function() {
+//
+// MVP
+
+something = (
+    <aws-ec2-instance name="foo" type="ec2.nano" ami="blabla" security-group="aaa">
+        <ebs-volume-attachment name="os" size="8GB"  device="/dev/sda"/>
+        <ebs-volume name="data" size="20GB" device="/dev/sdb"/>
+
+        {some_os()}
+        {/* aws-ec2-instance, together with do-droplet provides
+            context to underlying <os> instance, i.e
+                hostIp
+        */}
+    </aws-ec2-instance>
+)
+
+// when rendering,
+//   find all instances with Tag key="react-any-key" $name"
+//   these are our "actual status
+//   for these we have "ip", instance-id
+//   volumes
+
+some_os = function(props) {
     return (
-        <os>
+        <os {props...}>
             <user name="foo" groups="admin,sudoers"/>
-            <apt>   
+            <apt>
                 <package name="vim"/>
                 <package name="openssh-server"/>
                 <package name="redis-server"/>
@@ -22,7 +44,7 @@ some_os = function() {
                     react-whatever allows "type override", so all
                     elements under apt, have custom handler i.e tag name is package name
                 */}
-                
+
                 <vim/>
                 <redis-server/>
             </apt>
@@ -41,14 +63,14 @@ some_os = function() {
 
                 {/* example
                   mount point, when created automagically
-                  and target exists and is non-empty, 
+                  and target exists and is non-empty,
                      automagically creates ${target}.original, mounts and moves contents to newly mounted target
                 */}
         </os>
     )
 }
 
-// FIRST IDEA 
+// FIRST IDEA
 
 UserSchema = ReactAny.createSchema({
     key: 'name',
