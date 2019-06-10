@@ -1,11 +1,68 @@
 #include <functional>
 #include <iostream>
 #include <cassert>
+#include <cstdlib>
 
 //
 // allocators
 //
 // TBD, see Alexandrescu video about allocators again
+
+template <typename T>
+struct std_allocator {
+    using size_type = std::size_t;
+
+    T* allocate( size_type n )
+    {
+        return static_cast<T*>(::operator new(n * sizeof(T)));
+    }
+    void deallocate(T* ptr, size_type n) noexcept {
+    {
+        ::operator delete(ptr);
+    }
+};
+
+template <>
+struct std_allocator<void> {
+    using size_type = std::size_t;
+
+    void* allocate( size_type n )
+    {
+        return ::operator new(n);
+    }
+    void deallocate(void* ptr, size_type n) noexcept {
+    {
+        ::operator delete(ptr);
+    }
+};
+
+template <typename T>
+struct libc_allocator {
+    using size_type = std::size_t;
+
+    T* allocate( size_type n )
+    {
+        return static_cast<T*>(std::malloc(n * sizeof(T)));
+    }
+    void deallocate(T* ptr, size_type n) noexcept {
+    {
+        std::free(ptr);
+    }
+};
+
+template <>
+struct libc_allocator<void> {
+    using size_type = std::size_t;
+
+    void* allocate( size_type n )
+    {
+        return std::malloc(n);
+    }
+    void deallocate(void* ptr, size_type n) noexcept {
+    {
+        std::free(ptr);
+    }
+};
 
 struct allocator {
     virtual ~allocator() {}
